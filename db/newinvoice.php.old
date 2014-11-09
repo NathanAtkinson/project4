@@ -1,0 +1,191 @@
+<?php 
+
+// parameter called action...as a get, have the url have the prod id, then can fetch that.
+// combine if's into if else if possible
+// setup function...  logic that calls the functions...then logic is separated fromthe action
+// minimize number of DB calls
+$mysqli = new mysqli("dba", "root", "", "project4");
+
+function newInvoiceNumber($custid, $mysqli) {
+	$insertinvoice ='INSERT INTO invoices (saledate, customer_id) 
+						VALUES ("2014-10-29", "' . $custid . '")
+						';
+	$mysqli->query($insertinvoice);
+	return $mysqli->insert_id;
+}
+
+function removeLineItem($invnumber, $prodid) {
+	$removequery = "DELETE FROM line_items
+						WHERE line_items.invoice_id = '{$invnumber}'
+						AND line_items.product_id = '{$prodid}'
+						";
+	$mysqli->query($removequery);
+}
+
+
+
+
+
+if (isset($_GET['id']) == 1) {
+	$custid = $_GET['id'];
+} elseif (isset($_POST['id']) == 1) {
+	$custid = $_POST['id'];
+} else {
+	echo '<a href="customer.php">Back</a>';
+	die('Invalid ID');
+}
+
+if (isset($_GET['invnumber']) == 1) {
+	$invnumber = $_GET['invnumber'];
+} elseif (isset($_POST['invnumber']) == 1) {
+	$invnumber = $_POST['invnumber'];
+} else {
+	$invnumber = newInvoiceNumber($custid, $mysqli);
+}
+
+
+if ($mysqli->connect_errno) {
+	echo "Failed to connect to MySQL: (" . $mysqli->connect_errno 
+		. ")" .	$mysqli->connect_error;
+} else {
+	// echo 'else<br>';                    order by invoices asc
+
+
+
+
+
+
+
+
+	// checks if an invoice number is already set.  If not, creates invoice number. Afterwards, just use.
+	if(!isset($_POST['invnumber']) == 1 && isset($_GET['remove']) == 0) {
+		newInvoiceNumber($custid, $mysqli);
+	} 
+
+	// had to refer to MAX(invoice) as a name that I could refer to later in below lines
+	/*$recentinvsql ='SELECT MAX(invoice) AS invoice FROM invoices;';
+	$recentresults = $mysqli->query($recentinvsql);
+	$invnumber = $recentresults->fetch_assoc();
+	$invnumber = $invnumber['invoice'];*/
+
+	// Still need to populate any remaining line items
+	if($_SERVER['REQUEST_METHOD'] == 'GET' && isset($_GET['remove']) == 1) {
+		$prodid = $_GET['remove'];
+		removeLineItem($invnumber, $prodid);
+		// $lineitemsexist = true;
+	}
+
+
+	$sqlname = "SELECT firstname, lastname
+				FROM customers
+				WHERE customers.id = '{$custid}'
+				";
+	$customerrecord = $mysqli->query($sqlname);
+	$customerrecord = $customerrecord->fetch_assoc();
+	$customername = $customerrecord['firstname'] . ' ' . $customerrecord['lastname'];
+
+	if($_SERVER['REQUEST_METHOD'] == "POST" && (isset($_POST['productid']) == 1) && (isset($_POST['quantity']) == 1)) {
+		$insertitem = 'INSERT INTO line_items (invoice_id, product_id, quantity) 
+						VALUES ("' . $invnumber .'", "' . $_POST['productid'] . '", "' . $_POST['quantity'] . '") 
+						ON DUPLICATE KEY UPDATE quantity=VALUES(quantity)
+						';
+		
+		$mysqli->query($insertitem);
+	}
+	
+	$invoicesql = "SELECT DISTINCT
+						quantity,
+						name,
+						price,
+						product_id
+					FROM
+						invoices,
+						line_items,
+						products 
+					WHERE 
+						line_items.invoice_id = '{$invnumber}' 
+						AND invoices.invoice = '{$invnumber}' 
+						AND products.id = line_items.product_id
+					";
+	$invoiceinfo = $mysqli->query($invoicesql);
+
+	$productsql = "SELECT * FROM products;";
+	$productlist = $mysqli->query($productsql);
+	$total = 0;
+}
+
+?>
+
+
+
+ <!DOCTYPE html>
+ <html lang="en">
+ <head>
+ 	<meta charset="UTF-8">
+ 	<title>Home</title>
+ </head>
+ <body>
+ 	<div><h1><a href="customers.php">Back</a></h1></div>
+ 	<h1>Invoice No. <?=$invnumber ?></h1>
+ 	<!-- //dynamically create list of invoices here -->
+ 		<h3>Customer: <?=$customername ?></h3>
+		<form action="newinvoice.php" method="POST">
+ 	 	<table>
+	 	 	<tr>
+
+				<td>Quantity</td>
+				<td>Item</td>
+				<td>Cost</td>
+				<td>Subtotal</td>
+			</tr>
+					<input type="hidden" name="invnumber" value="<?= $invnumber?>">
+					<input type="hidden" name="id" value="<?= $custid ?>">
+				<?php 
+
+				// best way to address removal of line-items?  Set up a form for each row?
+				
+					while($info = $invoiceinfo->fetch_assoc()) {
+						$product_id = $info['product_id'];
+						$subtotal = $info['quantity'] * $info['price'];
+						$total += $subtotal;
+					?>
+					<tr>
+						<td> <?=$info['quantity'] ?></td>
+						<td> <?=$info['name'] ?></td>
+						<td> <?=$info['price'] ?></td>
+						<td> <?=$info['quantity'] * $info['price'] ?></td>
+						<td><a href="newinvoice.php?id=<?=$custid ?>&invnumber=<?= $invnumber?>&remove=<?= $info['product_id']?>">Remove</a></td>
+					</tr>
+				<?php } ?>
+				
+				<tr>
+					<td></td><td></td><td><b>Total</b></td><td><b> <?= $total ?> </b>
+				</tr>
+
+		</table>
+		</form>
+		<br>
+		<form action="newinvoice.php" method="POST">
+			<input type="hidden" name="invnumber" value="<?= $invnumber?>">
+			<input type="hidden" name="id" value="<?= $custid ?>">
+		<table>
+			<tr>
+				<td>Item</td>
+				<td>Quantity</td>
+			</tr>
+			<tr>
+				<td>
+					<select name="productid">
+				<?php while ($product=$productlist->fetch_assoc()) { ?>
+						<option  value=" <?= $product['id'] ?>"><?= $product['name']?></option>
+				<?php } ?>
+					</select>
+				</td>
+				<td><input type="number" name="quantity" min=1></td>
+				<td><button>Add</button></td>
+			</tr>
+
+		</table>
+		</form>
+ </body>
+ </html>

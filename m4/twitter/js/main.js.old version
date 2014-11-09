@@ -1,0 +1,123 @@
+/*
+*questions for instructors: why min-height and height on body?
+*Is everything toggling correctly?
+*How to make my templates more efficient? (fix the repeat of tweet)
+*what is the renderCompose function supposed to do?
+*/
+
+var User = {
+	handle: '@someguy',
+	img: 'images/brad.png'
+}
+
+var keyPressCount = 0;
+var charsLeft = 140;
+
+
+function renderTweet(u, message) {
+	var source = $('#template-tweet').html();
+	var template = Handlebars.compile(source);
+	var product = {'title': User.handle, 'tweet': message, 'image': User.img}
+	var compiled_product = template(product);
+	return compiled_product;
+}
+
+function renderCompose() {
+	var source = $('#template-compose').html();
+	var template = Handlebars.compile(source);
+	var product = {};
+	var compiled_product = template(product);
+	return compiled_product;
+}
+
+function renderThread(u, message) {
+	// ID, not class!  
+	var source = $('#template-thread').html();
+	var template = Handlebars.compile(source);
+	var product = {'tweet': renderTweet(u, message), 'compose': renderCompose()}
+	var compiled_product = template(product);
+	return compiled_product;
+}
+
+// forgot to add function after document ready function.  Therefore it never did anything.
+$(document).ready(function () {
+
+	/*switched from form to body as the query...because the form of new tweets needed to be
+	bound as well.*/
+	/*$('body').on('click', 'header textarea', function() {
+		$('.tweets').find('.expand').removeClass('expand');
+		$(this).parent().addClass('expand');
+		$(this).siblings().find('span.count').text(charsLeft-keyPressCount);
+	})*/
+
+	$('body').on('click', 'textarea', function() {
+		// $(this).find('.expand').removeClass('expand');
+		$(this).parents('form').addClass('expand');
+	});
+
+	$('.tweets').on('click', '.tweet', function() {
+		// $(this).parents().find('.expand').removeClass('expand');
+		// $('header').find('.expand').removeClass('expand');
+		$(this).parents('.thread').toggleClass('expand');
+		// $(this).find('form.compose').addClass('expand');
+	});
+
+
+	/*expands any existing tweets and shows a textarea to enter replies
+	and also show any already existing responses.*/
+	/*$('.tweets').on('click', '.thread', function() {
+		$(this).parents().find('.expand').removeClass('expand');
+		$('header').find('.expand').removeClass('expand');
+		$(this).toggleClass('expand');
+		$(this).find('form.compose').addClass('expand');
+		$(this).siblings().find('span.count').text(charsLeft-keyPressCount);
+	});*/
+
+
+	// had click instead of submit for the method below.  Actually want the form to not submit
+	$('header').on('submit', 'form', function(event) {
+  			event.preventDefault();
+  			var newtweet = $(this).find('textarea').val();
+  			
+			$('.tweets').append(renderThread(User, newtweet));
+  			$(this).find('textarea').val('');
+  			$(this).removeClass('expand');
+  	});
+
+
+	$('.tweets').on('submit', 'form', function(event) {
+  			event.preventDefault();
+  			var newreply = $(this).find('textarea').val();
+
+  			$(this).parent().append(renderTweet(User, newreply));
+  			$(this).find('textarea').val('');
+  			// $(this).parents('.thread').removeClass('expand');
+  			$(this).removeClass('expand');
+  	});
+
+	/*had to add keyup so that count would be accurate.  Otherwise, keydown would happen
+	and would decrease the keycount but be off by one*/
+	$('body').on('keydown keyup', 'textarea', function(e){
+		// console.log(e.charCode);
+
+		keyPressCount = $(this).val().length;
+		console.log(keyPressCount);
+		console.log($(this).val().length);
+		/*switch (e.keyCode) {
+
+			case 08: 
+				keyPressCount--;
+				break;
+			case 46:
+				keyPressCount--;
+				break;
+			default:
+				keyPressCount++;
+				break;
+		}*/
+		$(this).siblings().find('span.count').text(charsLeft-keyPressCount);
+
+	});
+
+
+});
